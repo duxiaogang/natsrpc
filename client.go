@@ -40,10 +40,7 @@ func (c *Client) Request(ctx context.Context, service, method string, req interf
 }
 
 func (c *Client) call(ctx context.Context, service, method string, req interface{}, rep interface{}, opt ...CallOption) error {
-	callOpt := &CallOptions{}
-	for _, v := range opt {
-		v(callOpt)
-	}
+	callOpt := c.newCallOptions(opt...)
 
 	payload, err := c.opt.encoder.Encode(req)
 	if err != nil {
@@ -57,11 +54,7 @@ func (c *Client) call(ctx context.Context, service, method string, req interface
 		subject   = ""
 		isPublish = rep == nil
 	)
-	if isPublish {
-		subject = joinSubject(c.opt.namespace, service, c.opt.id, pubSuffix)
-	} else {
-		subject = joinSubject(c.opt.namespace, service, c.opt.id)
-	}
+	subject = c.subject(service, isPublish, callOpt.id)
 
 	msg := &nats.Msg{
 		Subject: subject,
@@ -90,4 +83,21 @@ func (c *Client) call(ctx context.Context, service, method string, req interface
 		}
 	}
 	return nil
+}
+
+func (c *Client) newCallOptions(opt ...CallOption) *CallOptions {
+	callOpt := &CallOptions{
+		id: c.opt.id,
+	}
+	for _, v := range opt {
+		v(callOpt)
+	}
+	return callOpt
+}
+
+func (c *Client) subject(service string, isPublish bool, id string) string {
+	if isPublish {
+		return joinSubject(c.opt.namespace, service, id, pubSuffix)
+	}
+	return joinSubject(c.opt.namespace, service, id)
 }

@@ -33,13 +33,14 @@ type ServiceOptions struct {
 type ClientOptions struct {
 	namespace string  // 空间(划分隔离)
 	encoder   Encoder // 编码器
-	id        string  // id (不会覆盖clientOptions.id，只是用来标识这次调用)
+	id        string  // deprecated: 默认请求目标id，优先使用 CallOption 指定
 	//cm        callMiddleware // 调用中间件
 }
 
 // CallOptions 调用选项
 type CallOptions struct {
 	header map[string]string // header
+	id     string            // id
 }
 
 // ServerOption server option
@@ -120,7 +121,8 @@ func WithClientEncoder(encoder Encoder) ClientOption {
 	}
 }
 
-// WithClientID call id(不会覆盖clientOptions.id，只是用来标识这次调用)
+// WithClientID Deprecated: 使用 WithCallID.
+// 它会给当前 client 设置默认请求目标 id，单次调用可以用 WithCallID 覆盖。
 func WithClientID(id string) ClientOption {
 	return func(options *ClientOptions) {
 		options.id = id
@@ -134,5 +136,12 @@ type CallOption func(options *CallOptions)
 func WithCallHeader(hd map[string]string) CallOption {
 	return func(options *CallOptions) {
 		options.header = hd
+	}
+}
+
+// WithCallID 设置本次调用的目标 service id
+func WithCallID(id string) CallOption {
+	return func(options *CallOptions) {
+		options.id = id
 	}
 }
