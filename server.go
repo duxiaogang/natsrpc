@@ -204,20 +204,30 @@ func (s *Server) handle(ctx context.Context, sw *serviceWrapper, method string, 
 	}
 
 	b, err := sw.Call(ctx, method, payload, sw.opt.interceptor)
-	if err != nil {
-		return err
-	}
 
 	// publish 不需要回复
 	if len(replySub) == 0 {
-		return nil
+		return err
 	}
 
+	// ErrReplyLater：用户会在别处调用 Reply，这里不回复
+	if errors.Is(err, ErrReplyLater) {
+		return err
+	}
+
+	// 无论成功还是失败都要回复：成功时带上 Data，失败时 Data 为空、
+	// 错误信息通过 header 回传，避免客户端只能等待超时且丢失错误。
 	respMsg := &nats.Msg{
 		Subject: replySub,
-		Data:    b,
 		Header:  makeErrorHeader(err),
 	}
+	if err == nil {
+		respMsg.Data = b
+	}
 
-	return s.conn.PublishMsg(respMsg)
+	if pubErr := s.conn.PublishMsg(respMsg); pubErr != nil {
+		return pubErr
+	}
+	// 回复已发出，仍把 handler 的业务错误返回给上层用于日志上报
+	return err
 }
