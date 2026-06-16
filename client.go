@@ -72,6 +72,11 @@ func (c *Client) call(ctx context.Context, service, method string, req interface
 		return err
 	}
 
+	// 仅当调用方通过 WithCallReplyHeader 提供了容器时才解码响应 header。
+	if callOpt.replyHeader != nil {
+		*callOpt.replyHeader = decodeReplyHeader(reply.Header)
+	}
+
 	if errStr := getErrorHeader(reply.Header); errStr != "" {
 		return errors.New(errStr)
 	}

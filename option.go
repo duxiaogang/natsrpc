@@ -39,8 +39,9 @@ type ClientOptions struct {
 
 // CallOptions 调用选项
 type CallOptions struct {
-	header map[string]string // header
-	id     string            // id
+	header      map[string]string  // header
+	replyHeader *map[string]string // 若非 nil，请求返回后写入响应 header
+	id          string             // id
 }
 
 // ServerOption server option
@@ -136,6 +137,14 @@ type CallOption func(options *CallOptions)
 func WithCallHeader(hd map[string]string) CallOption {
 	return func(options *CallOptions) {
 		options.header = hd
+	}
+}
+
+// WithCallReplyHeader 传入一个 map 指针，Request 返回后会把服务端回传的
+// 响应 header 写入该指针指向的变量（仅 Request 有效，Publish 无响应）。
+func WithCallReplyHeader(hd *map[string]string) CallOption {
+	return func(options *CallOptions) {
+		options.replyHeader = hd
 	}
 }
 

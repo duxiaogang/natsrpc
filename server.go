@@ -217,9 +217,14 @@ func (s *Server) handle(ctx context.Context, sw *serviceWrapper, method string, 
 
 	// 无论成功还是失败都要回复：成功时带上 Data，失败时 Data 为空、
 	// 错误信息通过 header 回传，避免客户端只能等待超时且丢失错误。
+	// reply header 在成功/失败两种情况下都回传（_ns_error 与 _ns_reply 共存）。
+	var replyHeader map[string]string
+	if meta := getMeta(ctx); meta != nil {
+		replyHeader = meta.snapshotReplyHeader()
+	}
 	respMsg := &nats.Msg{
 		Subject: replySub,
-		Header:  makeErrorHeader(err),
+		Header:  addReplyHeader(makeErrorHeader(err), replyHeader),
 	}
 	if err == nil {
 		respMsg.Data = b

@@ -37,7 +37,7 @@ func Reply(ctx context.Context, rep interface{}, repErr error) error {
 	respMsg := &nats.Msg{
 		Subject: meta.reply,
 		//Data:    b,
-		Header: makeErrorHeader(repErr),
+		Header: addReplyHeader(makeErrorHeader(repErr), meta.snapshotReplyHeader()),
 	}
 
 	b, err := meta.server.opt.encoder.Encode(rep)
