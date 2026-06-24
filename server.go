@@ -126,7 +126,7 @@ func (s *Server) Register(sd ServiceDesc, val interface{}, opts ...ServiceOption
 		return nil, err
 	}
 
-	s.services[sd.ServiceName] = sw
+	s.services[name] = sw
 	s.mu.Unlock()
 
 	// TODO flush
