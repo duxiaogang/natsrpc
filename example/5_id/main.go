@@ -27,12 +27,11 @@ func main() {
 	const n = 10
 
 	for i := 0; i < n; i++ {
-		server, err := natsrpc.NewServer(conn)
-		example.IfNotNilPanic(err)
-		defer server.Close(context.Background())
+		//server, err := natsrpc.NewServer(conn)
+		//example.IfNotNilPanic(err)
+		//defer server.Close(context.Background())
 		s := &HelloSvc{id: "svc" + fmt.Sprint(i)}
-		svc, err := example.RegisterGreetingNRServer(server, s,
-			natsrpc.WithServiceID(fmt.Sprint(i)))
+		svc, err := example.RegisterGreetingNRServer(server, s, natsrpc.WithServiceID(fmt.Sprint(i)))
 		example.IfNotNilPanic(err)
 		defer svc.Close()
 	}
