@@ -19,6 +19,7 @@ type metaValue struct {
 	header map[string]string
 	reply  string
 	server *Server
+	cancel context.CancelFunc // 手动回复成功后释放请求的超时 context
 
 	mu          sync.Mutex        // 守护 replyHeader（延迟回复时跨 goroutine 访问）
 	replyHeader map[string]string // 服务端 handler/interceptor 写入，回传给客户端

@@ -34,6 +34,10 @@ NATRPC的目的就是要像gRPC一样定义接口，像NATS一样不关心具体
 Client发请求时会的subject是service 的name，并且nats msg的header传递method name。  
 Service收到消息后取出method name，然后调用对应的handler，handler返回的结果会通过nats msg的reply subject返回给Client。
 
+请求订阅使用 `natsrpc` 队列组，同一 subject 下的多个服务实例共同分担请求，每条请求交给其中一个实例处理。Publish 方法使用独立的广播订阅，每个实例都会收到消息。升级时应将同一 subject 的服务实例一起切换：旧版普通订阅与新版队列订阅混用仍会重复处理请求。
+
+新版生成器通过 `MethodDesc.RequestFactory` 直接创建请求对象。旧生成代码的 `RequestType` 仍可使用，重新生成 stub 后即可走无反射路径；`Request`、`Publish`、拦截器接口和 `.natsrpc.pb.go` 文件名保持兼容。生成的新 stub 需要配套使用包含 `RequestFactory` 的运行时库。
+
 ## Install Tools
 1. protoc(v3.17.3) 
    - [Linux](https://github.com/protocolbuffers/protobuf/releases/download/v3.17.3/protoc-3.17.3-linux-x86_64.zip)

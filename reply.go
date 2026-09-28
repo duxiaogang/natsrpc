@@ -2,6 +2,7 @@ package natsrpc
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/nats-io/nats.go"
@@ -34,18 +35,27 @@ func Reply(ctx context.Context, rep interface{}, repErr error) error {
 		return ErrEmptyReply
 	}
 
+	var payload []byte
+	if repErr == nil && rep != nil {
+		var err error
+		payload, err = meta.server.opt.encoder.Encode(rep)
+		if err != nil {
+			repErr = fmt.Errorf("encode response failed: %w", err)
+			payload = nil
+		}
+	}
 	respMsg := &nats.Msg{
 		Subject: meta.reply,
-		//Data:    b,
-		Header: addReplyHeader(makeErrorHeader(repErr), meta.snapshotReplyHeader()),
+		Data:    payload,
+		Header:  addReplyHeader(makeErrorHeader(repErr), meta.snapshotReplyHeader()),
 	}
-
-	b, err := meta.server.opt.encoder.Encode(rep)
-	if err != nil {
+	if err := meta.server.conn.PublishMsg(respMsg); err != nil {
 		return err
 	}
-	respMsg.Data = b
-	return meta.server.conn.PublishMsg(respMsg)
+	if meta.cancel != nil {
+		meta.cancel()
+	}
+	return nil
 }
 
 // MakeReplyFunc 构造一个延迟返回函数
@@ -54,7 +64,7 @@ func MakeReplyFunc[T any](ctx context.Context) (replay func(T, error) error) {
 	replay = func(rep T, errRep error) error {
 		var err error
 		once.Do(func() {
-			err = Reply(ctx, errRep, err)
+			err = Reply(ctx, rep, errRep)
 		})
 		return err
 	}

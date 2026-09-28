@@ -23,7 +23,8 @@ var (
 )
 
 const (
-	pubSuffix = "_nr_pub" // publish subject suffix
+	defaultQueue = "natsrpc" // request queue group
+	pubSuffix    = "_nr_pub" // publish subject suffix
 )
 
 // ServiceRegistrar 注册服务

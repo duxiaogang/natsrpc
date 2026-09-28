@@ -92,10 +92,12 @@ func WithServiceID(id string) ServiceOption {
 	}
 }
 
-// WithServiceTimeout 超时时间
+// WithServiceTimeout 超时时间，忽略非正值。
 func WithServiceTimeout(timeout time.Duration) ServiceOption {
 	return func(options *ServiceOptions) {
-		options.timeout = timeout
+		if timeout > 0 {
+			options.timeout = timeout
+		}
 	}
 }
 

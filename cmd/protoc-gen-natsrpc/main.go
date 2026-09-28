@@ -11,7 +11,7 @@ import (
 
 var (
 	showVersion = flag.Bool("version", false, "print the version and exit")
-	omitempty   = flag.Bool("omitempty", true, "omit if google.api is empty")
+	_           = flag.Bool("omitempty", true, "deprecated: retained for compatibility; has no effect")
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			generateFile(gen, f, *omitempty)
+			generateFile(gen, f)
 		}
 		return nil
 	})

@@ -147,7 +147,7 @@ func newTestNATSConn(t *testing.T) *nats.Conn {
 	if err != nil {
 		t.Fatalf("NewServer() error = %v", err)
 	}
-	ns.Start()
+	go ns.Start()
 	if !ns.ReadyForConnections(10 * time.Second) {
 		ns.Shutdown()
 		t.Fatal("nats server did not become ready")

@@ -13,24 +13,22 @@ var bufPool = sync.Pool{
 
 // joinSubject 组合字符串成subject
 func joinSubject(s ...string) string {
-	for i, v := range s {
-		if v == "" {
-			s = s[i:]
-		} else {
-			break
-		}
+	start := 0
+	for start < len(s) && s[start] == "" {
+		start++
 	}
+	s = s[start:]
+
 	switch len(s) {
 	case 0:
 		return ""
 	case 1:
 		return s[0]
 	case 2:
-		if s[0] == "" {
-			return s[1]
-		} else if s[1] == "" {
+		if s[1] == "" {
 			return s[0]
 		}
+		return s[0] + "." + s[1]
 	}
 
 	bf := bufPool.Get().(*strings.Builder)
@@ -46,7 +44,7 @@ func joinSubject(s ...string) string {
 		if first {
 			first = false
 		} else {
-			bf.WriteString(".")
+			bf.WriteByte('.')
 		}
 		bf.WriteString(v)
 	}

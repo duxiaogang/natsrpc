@@ -8,11 +8,9 @@ package example
 import (
 	context "context"
 	natsrpc "github.com/byebyebruce/natsrpc"
-	reflect "reflect"
 )
 
 var _ context.Context
-var _ reflect.Value
 var _ = natsrpc.SupportVersion_0_7_0
 
 const (
@@ -40,17 +38,17 @@ func (c *_GreetingNRClientImpl) Hello(ctx context.Context, req *HelloRequest, op
 	if err != nil {
 		return nil, err
 	}
-	return rep, err
+	return rep, nil
 }
 
 var Greeting_NRServiceDesc = natsrpc.ServiceDesc{
 	ServiceName: Greeting_NRServiceName,
 	Methods: []natsrpc.MethodDesc{
 		{
-			MethodName:  "Hello",
-			Handler:     _Greeting_Hello_NRHandler,
-			RequestType: reflect.TypeOf(HelloRequest{}),
-			IsPublish:   false,
+			MethodName:     "Hello",
+			Handler:        _Greeting_Hello_NRHandler,
+			RequestFactory: func() any { return &HelloRequest{} },
+			IsPublish:      false,
 		},
 	},
 	Metadata: "example.proto",
@@ -95,10 +93,10 @@ var GreetingToAll_NRServiceDesc = natsrpc.ServiceDesc{
 	ServiceName: GreetingToAll_NRServiceName,
 	Methods: []natsrpc.MethodDesc{
 		{
-			MethodName:  "HelloToAll",
-			Handler:     _GreetingToAll_HelloToAll_NRHandler,
-			RequestType: reflect.TypeOf(HelloRequest{}),
-			IsPublish:   true,
+			MethodName:     "HelloToAll",
+			Handler:        _GreetingToAll_HelloToAll_NRHandler,
+			RequestFactory: func() any { return &HelloRequest{} },
+			IsPublish:      true,
 		},
 	},
 	Metadata: "example.proto",

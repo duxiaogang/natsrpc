@@ -18,6 +18,11 @@ func TestJoinSubject(t *testing.T) {
 		args args
 		want string
 	}{
+		{"no parts", args{nil}, ""},
+		{"empty parts", args{[]string{"", "", ""}}, ""},
+		{"one part", args{[]string{"service"}}, "service"},
+		{"two parts", args{[]string{"service", "id"}}, "service.id"},
+		{"trailing empty part", args{[]string{"service", ""}}, "service"},
 		{"", args{[]string{"a", "b", "c"}}, "a.b.c"},
 		{"", args{[]string{"", "b", "c"}}, "b.c"},
 		{"", args{[]string{"", "", "b", "c"}}, "b.c"},

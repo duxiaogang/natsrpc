@@ -121,18 +121,21 @@ func (s *Server) Register(sd ServiceDesc, val interface{}, opts ...ServiceOption
 	sw := &serviceWrapper{
 		Service: svc,
 	}
-	if err := s.subscribeMethod(sw); nil != err {
+	err = s.subscribeMethod(sw)
+	if err == nil {
+		err = s.conn.Flush()
+	}
+	if err != nil {
+		// 注册失败时同步清理所有已创建的订阅，不留下半注册的服务。
+		for _, sub := range sw.subscriptions {
+			sub.Unsubscribe()
+		}
 		s.mu.Unlock()
 		return nil, err
 	}
 
 	s.services[name] = sw
 	s.mu.Unlock()
-
-	// TODO flush
-	if err := s.conn.Flush(); err != nil {
-		return nil, err
-	}
 
 	return svc, nil
 }
@@ -154,6 +157,7 @@ func (s *Server) subscribeMethod(sw *serviceWrapper) error {
 				header: header,
 				reply:  msg.Reply,
 				server: s,
+				cancel: cancel,
 			}
 			ctx = withMeta(ctx, meta)
 
@@ -166,7 +170,7 @@ func (s *Server) subscribeMethod(sw *serviceWrapper) error {
 				}
 				s.opt.errorHandler(err.Error())
 			}
-			// 不能defer，因为有ErrReplyLater的情况
+			// 延迟回复由 Reply 在发送成功后取消；未回复时由 timeout 结束。
 			cancel()
 		}
 		if sw.opt.multiGoroutine {
@@ -178,7 +182,7 @@ func (s *Server) subscribeMethod(sw *serviceWrapper) error {
 	}
 
 	sub := sw.Name()
-	reqSub, subErr := s.conn.Subscribe(sub, cb)
+	reqSub, subErr := s.conn.QueueSubscribe(sub, defaultQueue, cb)
 	if nil != subErr {
 		return subErr
 	}
@@ -186,7 +190,6 @@ func (s *Server) subscribeMethod(sw *serviceWrapper) error {
 	if sw.Service.sd.hasPublishMethod() {
 		pubSub, pubErr := s.conn.Subscribe(joinSubject(sub, pubSuffix), cb)
 		if pubErr != nil {
-			go reqSub.Unsubscribe()
 			return pubErr
 		}
 		sw.subscriptions = append(sw.subscriptions, pubSub)
