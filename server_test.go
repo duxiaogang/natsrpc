@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,6 +135,38 @@ func TestServerUnSubscribeAllClearsAllServiceIDs(t *testing.T) {
 	}
 	requireNoGreeting(t, client, WithCallID("role-1"))
 	requireNoGreeting(t, client, WithCallID("role-2"))
+}
+
+func TestServerUnSubscribeAllConcurrentRegistry(t *testing.T) {
+	conn := newTestNATSConn(t)
+	server := newTestRPCServer(t, conn)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		<-start
+		for i := 0; i < 100; i++ {
+			svc, err := server.Register(serverTestGreetingDesc, &serverTestGreeting{}, WithServiceID(strconv.Itoa(i)))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			svc.Close()
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		<-start
+		for i := 0; i < 10000; i++ {
+			if err := server.UnSubscribeAll(); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	close(start)
+	workers.Wait()
 }
 
 func newTestNATSConn(t *testing.T) *nats.Conn {

@@ -1,6 +1,11 @@
 package natsrpc
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestClientNewCallOptions(t *testing.T) {
 	c := &Client{
@@ -75,4 +80,61 @@ func TestClientSubject(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClientRequestDecodesEmptyResponse(t *testing.T) {
+	decodeErr := errors.New("empty response rejected by decoder")
+	for _, tt := range []struct {
+		name    string
+		encoder Encoder
+		wantErr error
+	}{
+		{name: "protobuf clears previous fields", encoder: defaultEncoder},
+		{
+			name: "custom decoder error is returned",
+			encoder: clientTestErrorDecoder{
+				Encoder: defaultEncoder,
+				err:     decodeErr,
+			},
+			wantErr: decodeErr,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := newTestNATSConn(t)
+			server := newTestRPCServer(t, conn)
+			desc := ServiceDesc{
+				ServiceName: "natsrpc.test.EmptyResponse",
+				Methods: []MethodDesc{{
+					MethodName:     "Hello",
+					RequestFactory: func() any { return &serverTestRequest{} },
+					Handler: func(_ interface{}, _ context.Context, _ interface{}) (interface{}, error) {
+						return &serverTestReply{}, nil
+					},
+				}},
+			}
+			if _, err := server.Register(desc, nil); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			reply := &serverTestReply{Message: "previous response"}
+			client := NewClient(conn, WithClientEncoder(tt.encoder))
+			err := client.Request(ctx, desc.ServiceName, "Hello", &serverTestRequest{}, reply)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("Request() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil && reply.Message != "" {
+				t.Fatalf("empty response retained previous Message = %q", reply.Message)
+			}
+		})
+	}
+}
+
+type clientTestErrorDecoder struct {
+	Encoder
+	err error
+}
+
+func (e clientTestErrorDecoder) Decode(_ []byte, _ interface{}) error {
+	return e.err
 }

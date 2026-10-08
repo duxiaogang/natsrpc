@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -46,39 +47,70 @@ func NewServer(conn *nats.Conn, option ...ServerOption) (*Server, error) {
 	return d, nil
 }
 
-// Close 关闭
-func (s *Server) Close(ctx context.Context) (err error) {
-	s.UnSubscribeAll()
-
-	over := make(chan struct{})
+// Close 取消订阅，等待正在执行的 handler 结束并刷新连接。
+// 取消订阅这一步始终执行，即使 ctx 已过期/已取消，避免调用方传入已过期 ctx 时
+// 订阅完全不被清理；ctx 只用于控制等待 handler 结束和 flush 这两个可能阻塞的阶段。
+func (s *Server) Close(ctx context.Context) error {
+	// Register/Remove 可能持有服务表锁等待网络操作，取消订阅也必须受 ctx 限制。
+	done := make(chan error, 1)
 	go func() {
-		s.wg.Wait()
-		close(over)
+		unsubscribed, err := s.unsubscribeAll()
+		if err == nil && unsubscribed {
+			err = s.flushWithContext(ctx)
+		}
+		if err == nil {
+			// TODO: 关闭流程尚未与 callback 的 wg.Add 同步：Unsubscribe/Flush 后，
+			// 已取出的消息仍可能进入 callback，导致 Wait 提前返回或与 Add 发生竞态。
+			// 后续需用同一把锁协调 closing 状态与 Add；ErrReplyLater 的延迟回复也未计入等待。
+			s.wg.Wait()
+			err = s.flushWithContext(ctx)
+		}
+		done <- err
 	}()
 	select {
 	case <-ctx.Done():
-		err = ctx.Err()
-	case <-over:
+		return ctx.Err()
+	case err := <-done:
+		return err
+	}
+}
+
+func (s *Server) flushWithContext(ctx context.Context) error {
+	if _, ok := ctx.Deadline(); !ok {
+		// NATS FlushWithContext 要求 deadline；无 deadline 时沿用 Flush 的 10 秒上限，
+		// 同时保留调用方通过 cancel 取消的能力。
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 	}
 	return s.conn.FlushWithContext(ctx)
 }
 
 // UnSubscribeAll 取消所有订阅
 func (s *Server) UnSubscribeAll() error {
-	unsubs := make([]*nats.Subscription, 0, len(s.services))
+	unsubscribed, err := s.unsubscribeAll()
+	if err != nil || !unsubscribed {
+		return err
+	}
+	return s.conn.Flush()
+}
+
+// unsubscribeAll 返回是否存在订阅，由调用方选择带 context 或默认超时的 Flush。
+func (s *Server) unsubscribeAll() (bool, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	unsubs := make([]*nats.Subscription, 0, len(s.services))
 	for _, svc := range s.services {
 		unsubs = append(unsubs, svc.subscriptions...)
 		svc.subscriptions = nil
 	}
+	var err error
 	for _, v := range unsubs {
-		v.Unsubscribe()
+		if subErr := v.Unsubscribe(); subErr != nil && err == nil {
+			err = subErr
+		}
 	}
-	s.mu.Unlock()
-	if len(unsubs) > 0 {
-		return s.conn.Flush()
-	}
-	return nil
+	return len(unsubs) > 0, err
 }
 
 // Remove 移除一个服务

@@ -81,13 +81,8 @@ func (c *Client) call(ctx context.Context, service, method string, req interface
 		return errors.New(errStr)
 	}
 
-	if len(reply.Data) > 0 {
-		err = c.opt.encoder.Decode(reply.Data, rep)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	// 空字节也是合法的 protobuf 消息，必须解码以清除复用响应对象中的旧字段。
+	return c.opt.encoder.Decode(reply.Data, rep)
 }
 
 func (c *Client) newCallOptions(opt ...CallOption) *CallOptions {
